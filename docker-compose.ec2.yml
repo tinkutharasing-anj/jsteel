@@ -26,13 +26,13 @@ services:
     build: ./backend
     container_name: welding_app_backend
     environment:
-      PORT: 3001
+      PORT: "3001"
       NODE_ENV: ${NODE_ENV:-production}
       DB_USER: postgres
       DB_HOST: welding_postgres
       DB_NAME: welding_app
       DB_PASSWORD: ${DB_PASSWORD:-postgres123}
-      DB_PORT: 5432
+      DB_PORT: "5432"
       JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here_change_in_production}
     ports:
       - "3002:3001"  # Changed from 3001 to avoid conflicts
@@ -52,8 +52,8 @@ services:
     build: .
     container_name: welding_app_frontend
     environment:
-      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:3002/api}
-      - NODE_ENV: ${NODE_ENV:-production}
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:3002/api}
+      NODE_ENV: ${NODE_ENV:-production}
     ports:
       - "8081:8080"  # Changed from 8080 to avoid conflicts
     depends_on:
