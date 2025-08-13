@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: welding_app
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_PASSWORD: your_secure_db_password_here
     ports:
       - "5433:5432"  # Changed from 5432 to avoid conflicts
     volumes:
@@ -26,14 +26,14 @@ services:
     build: ./backend
     container_name: welding_app_backend
     environment:
-      PORT: "3001"
-      NODE_ENV: ${NODE_ENV:-production}
-      DB_USER: postgres
-      DB_HOST: welding_postgres
-      DB_NAME: welding_app
-      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
-      DB_PORT: "5432"
-      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here_change_in_production}
+      - PORT=3001
+      - NODE_ENV=production
+      - DB_USER=postgres
+      - DB_HOST=welding_postgres
+      - DB_NAME=welding_app
+      - DB_PASSWORD=your_secure_db_password_here
+      - DB_PORT=5432
+      - JWT_SECRET=your_secure_jwt_secret_here
     ports:
       - "3002:3001"  # Changed from 3001 to avoid conflicts
     depends_on:
@@ -45,15 +45,15 @@ services:
       - ./backend/uploads:/app/uploads
     networks:
       - welding_network
-    command: npm start  # Changed from dev to start for production
+    command: npm start
     restart: unless-stopped
 
   welding_frontend:
     build: .
     container_name: welding_app_frontend
     environment:
-      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:3002/api}
-      NODE_ENV: ${NODE_ENV:-production}
+      - REACT_APP_API_URL=http://13.59.153.143:3002/api
+      - NODE_ENV=production
     ports:
       - "8081:8080"  # Changed from 8080 to avoid conflicts
     depends_on:
@@ -87,4 +87,3 @@ volumes:
 networks:
   welding_network:
     driver: bridge
-gi
