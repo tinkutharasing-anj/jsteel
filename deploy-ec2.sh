@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 
 # Welding App EC2 Deployment Script - Enhanced with Production Optimization
 # This script deploys the welding app on EC2 alongside other sites
@@ -6,6 +6,10 @@
 set -e
 
 echo "🚀 Starting Welding App EC2 Deployment with Production Optimization..."
+
+# Domain for production deployment (can be overridden by exporting DOMAIN)
+DOMAIN=${DOMAIN:-career.anjamerica.com}
+SCHEME=https
 
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
@@ -18,13 +22,9 @@ EC2_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null
 
 echo "�� Detected EC2 IP: $EC2_IP"
 
-# Ask user for deployment type
-echo ""
-echo "🎯 Choose deployment type:"
-echo "1) Standard deployment (original ports)"
-echo "2) Production deployment (optimized, different ports)"
-echo "3) Production deployment with cleanup"
-read -p "Enter choice (1-3): " DEPLOY_CHOICE
+# Non-interactive deployment selection (default to production)
+DEPLOY_CHOICE=${DEPLOY_CHOICE:-2}
+echo "🎯 Deployment type: $DEPLOY_CHOICE"
 
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
@@ -36,8 +36,8 @@ DB_PASSWORD=postgres123
 JWT_SECRET=your_jwt_secret_here_change_in_production
 ENVEOF
     
-    # Add the API URL with the detected IP
-    echo "REACT_APP_API_URL=http://$EC2_IP:3001/api" >> .env
+    # Add the API URL pointing to the production domain over HTTPS
+    echo "REACT_APP_API_URL=${SCHEME}://${DOMAIN}/api" >> .env
     
     echo "✅ .env file created successfully"
     echo "⚠️  Please edit .env file with secure values:"
@@ -61,15 +61,18 @@ fi
 
 # Stop existing containers if running
 echo "🛑 Stopping existing containers..."
-docker-compose down 2>/dev/null || true
-docker-compose -f docker-compose.ec2.yml down 2>/dev/null || true
-docker-compose -f docker-compose.prod.yml down 2>/dev/null || true
+docker compose down --remove-orphans 2>/dev/null || true
+docker compose -f docker-compose.ec2.yml down --remove-orphans 2>/dev/null || true
+docker compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+
+# Force remove any leftover containers so re-runs don't fail with name collisions
+docker rm -f welding_app_db welding_app_backend welding_app_frontend welding_app_nginx 2>/dev/null || true
 
 # Handle different deployment types
 case $DEPLOY_CHOICE in
     1)
         echo "🔨 Starting standard deployment..."
-        docker-compose up -d --build
+        docker compose up -d --build
         FRONTEND_PORT=8080
         BACKEND_PORT=3001
         DB_PORT=5432
@@ -119,6 +122,7 @@ services:
       - welding_postgres
     volumes:
       - ./backend:/app
+      - ./backend/uploads:/app/uploads
     networks:
       - welding_network
     command: sh -c "npm install --production && npm start"
@@ -133,10 +137,10 @@ networks:
 PRODEOF
         fi
         
-        # Update .env for production ports
-        sed -i "s|http://$EC2_IP:3001/api|http://$EC2_IP:3002/api|g" .env
+        # Ensure .env points API to the production domain over HTTPS
+        sed -i "s|^REACT_APP_API_URL=.*$|REACT_APP_API_URL=${SCHEME}://${DOMAIN}/api|g" .env
         
-        docker-compose -f docker-compose.prod.yml up -d --build
+        docker compose -f docker-compose.prod.yml up -d --build
         FRONTEND_PORT=8081
         BACKEND_PORT=3002
         DB_PORT=5433
@@ -165,9 +169,9 @@ sleep 20
 # Check service status
 echo "📊 Checking service status..."
 if [ "$DEPLOY_CHOICE" = "1" ]; then
-    docker-compose ps
+    docker compose ps
 else
-    docker-compose -f docker-compose.prod.yml ps
+    docker compose -f docker-compose.prod.yml ps
 fi
 
 # Test the API
@@ -219,15 +223,15 @@ echo "   - Port $DB_PORT (Database - optional, for direct access)"
 echo ""
 echo "🔧 Management Commands:"
 if [ "$DEPLOY_CHOICE" = "1" ]; then
-    echo "   View logs: docker-compose logs -f"
-    echo "   Stop services: docker-compose down"
-    echo "   Restart services: docker-compose restart"
-    echo "   Update: git pull && docker-compose up -d --build"
+    echo "   View logs: docker compose logs -f"
+    echo "   Stop services: docker compose down"
+    echo "   Restart services: docker compose restart"
+    echo "   Update: git pull && docker compose up -d --build"
 else
-    echo "   View logs: docker-compose -f docker-compose.prod.yml logs -f"
-    echo "   Stop services: docker-compose -f docker-compose.prod.yml down"
-    echo "   Restart services: docker-compose -f docker-compose.prod.yml restart"
-    echo "   Update: git pull && docker-compose -f docker-compose.prod.yml up -d --build"
+    echo "   View logs: docker compose -f docker-compose.prod.yml logs -f"
+    echo "   Stop services: docker compose -f docker-compose.prod.yml down"
+    echo "   Restart services: docker compose -f docker-compose.prod.yml restart"
+    echo "   Update: git pull && docker compose -f docker-compose.prod.yml up -d --build"
 fi
 echo ""
 echo "📚 Next Steps:"
