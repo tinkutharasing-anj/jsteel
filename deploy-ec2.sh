@@ -11,6 +11,25 @@ echo "🚀 Starting Welding App EC2 Deployment with Production Optimization..."
 DOMAIN=${DOMAIN:-career.anjamerica.com}
 SCHEME=https
 
+# Portable sed -i for GNU/BSD
+sedi() {
+    if sed --version >/dev/null 2>&1; then
+        sed -i "$@"
+    else
+        sed -i '' "$@"
+    fi
+}
+
+# Select docker compose command (supports both v2 plugin and legacy docker-compose)
+if docker compose version >/dev/null 2>&1; then
+    dc() { docker compose "$@"; }
+elif command -v docker-compose >/dev/null 2>&1; then
+    dc() { docker-compose "$@"; }
+else
+    echo "❌ Neither 'docker compose' nor 'docker-compose' is available. Please install Docker Compose."
+    exit 1
+fi
+
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
     echo "❌ Docker is not running. Please start Docker first."
@@ -61,9 +80,9 @@ fi
 
 # Stop existing containers if running
 echo "🛑 Stopping existing containers..."
-docker compose down --remove-orphans 2>/dev/null || true
-docker compose -f docker-compose.ec2.yml down --remove-orphans 2>/dev/null || true
-docker compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+dc down --remove-orphans 2>/dev/null || true
+dc -f docker-compose.ec2.yml down --remove-orphans 2>/dev/null || true
+dc -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
 
 # Force remove any leftover containers so re-runs don't fail with name collisions
 docker rm -f welding_app_db welding_app_backend welding_app_frontend welding_app_nginx 2>/dev/null || true
@@ -72,7 +91,7 @@ docker rm -f welding_app_db welding_app_backend welding_app_frontend welding_app
 case $DEPLOY_CHOICE in
     1)
         echo "🔨 Starting standard deployment..."
-        docker compose up -d --build
+        dc up -d --build
         FRONTEND_PORT=8080
         BACKEND_PORT=3001
         DB_PORT=5432
@@ -138,9 +157,9 @@ PRODEOF
         fi
         
         # Ensure .env points API to the production domain over HTTPS
-        sed -i "s|^REACT_APP_API_URL=.*$|REACT_APP_API_URL=${SCHEME}://${DOMAIN}/api|g" .env
+        sedi "s|^REACT_APP_API_URL=.*$|REACT_APP_API_URL=${SCHEME}://${DOMAIN}/api|g" .env
         
-        docker compose -f docker-compose.prod.yml up -d --build
+        dc -f docker-compose.prod.yml up -d --build
         FRONTEND_PORT=8081
         BACKEND_PORT=3002
         DB_PORT=5433
@@ -155,7 +174,7 @@ PRODEOF
         ;;
     *)
         echo "❌ Invalid choice. Using standard deployment..."
-        docker-compose up -d --build
+        dc up -d --build
         FRONTEND_PORT=8080
         BACKEND_PORT=3001
         DB_PORT=5432
@@ -169,9 +188,9 @@ sleep 20
 # Check service status
 echo "📊 Checking service status..."
 if [ "$DEPLOY_CHOICE" = "1" ]; then
-    docker compose ps
+    dc ps
 else
-    docker compose -f docker-compose.prod.yml ps
+    dc -f docker-compose.prod.yml ps
 fi
 
 # Test the API
