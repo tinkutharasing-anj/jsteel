@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: welding_app_db
+    environment:
+      POSTGRES_DB: welding_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/config/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - welding_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: welding_app_backend
+    environment:
+      PORT: 3001
+      NODE_ENV: development
+      DB_USER: postgres
+      DB_HOST: postgres
+      DB_NAME: welding_app
+      DB_PASSWORD: postgres123
+      DB_PORT: 5432
+      JWT_SECRET: your_jwt_secret_here_change_in_production
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./backend/uploads:/app/uploads
+    networks:
+      - welding_network
+    command: npm run dev
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  welding_network:
+    driver: bridge
