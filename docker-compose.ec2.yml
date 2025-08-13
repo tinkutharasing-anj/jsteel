@@ -87,3 +87,4 @@ volumes:
 networks:
   welding_network:
     driver: bridge
+gi
