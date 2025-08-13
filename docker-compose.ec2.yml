@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  welding_postgres:
+    image: postgres:15
+    container_name: welding_app_db
+    environment:
+      POSTGRES_DB: welding_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+    ports:
+      - "5433:5432"  # Changed from 5432 to avoid conflicts
+    volumes:
+      - welding_postgres_data:/var/lib/postgresql/data
+      - ./backend/config/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - welding_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  welding_backend:
+    build: ./backend
+    container_name: welding_app_backend
+    environment:
+      PORT: 3001
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_USER: postgres
+      DB_HOST: welding_postgres
+      DB_NAME: welding_app
+      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
+      DB_PORT: 5432
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here_change_in_production}
+    ports:
+      - "3002:3001"  # Changed from 3001 to avoid conflicts
+    depends_on:
+      welding_postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./backend/uploads:/app/uploads
+    networks:
+      - welding_network
+    command: npm start  # Changed from dev to start for production
+    restart: unless-stopped
+
+  welding_frontend:
+    build: .
+    container_name: welding_app_frontend
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:3002/api}
+      - NODE_ENV: ${NODE_ENV:-production}
+    ports:
+      - "8081:8080"  # Changed from 8080 to avoid conflicts
+    depends_on:
+      - welding_backend
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - welding_network
+    command: npm run web
+    restart: unless-stopped
+
+  welding_nginx:
+    image: nginx:alpine
+    container_name: welding_app_nginx
+    ports:
+      - "8082:80"  # Changed from 80 to avoid conflicts
+    volumes:
+      - ./nginx-multi-site.conf:/etc/nginx/nginx.conf
+      - ./backend/uploads:/var/www/uploads
+    depends_on:
+      - welding_backend
+      - welding_frontend
+    networks:
+      - welding_network
+    restart: unless-stopped
+
+volumes:
+  welding_postgres_data:
+
+networks:
+  welding_network:
+    driver: bridge
